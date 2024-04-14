@@ -27,8 +27,7 @@ endif()
 add_executable(ece650-prj ece650-prj.cpp)
 # link MiniSAT libraries
 target_link_libraries(ece650-prj minisat-lib-static)
+# Link pthread library - ensuring proper linking of pthreads
+find_package(Threads REQUIRED)
+target_link_libraries(ece650-prj Threads::Threads)
 
-# create the executable for tests
-add_executable(test test.cpp)
-# link MiniSAT libraries
-target_link_libraries(test minisat-lib-static)

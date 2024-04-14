@@ -1,217 +1,215 @@
-#include <iostream>         //Takes care of input/output strems
-#include <vector>           //In place of arrays for dynamic allocations
-#include <regex>            //For input recognition                        
-#include <string>           //To do work with strings
-#include <queue>            //To make use of queue to keep track of visited nodes
+/*
+# Link pthread library - ensuring proper linking of pthreads
+find_package(Threads REQUIRED)
+target_link_libraries(ece650-prj Threads::Threads)
+*/
 
-#include <memory>
-#include "minisat/core/SolverTypes.h"
-#include "minisat/core/Solver.h"
+// Importing Neccessary header files
 
-using namespace std;
-using namespace Minisat;
+#include <iostream>                   // takes care of input/output streams
+#include <vector>                     // Alternative of Array to do dynamic operations
+#include <queue>                      // to iterate adjacency list
+#include <regex>                      // to deal with input formats
+#include <climits>                    // for infinite or INT_MAX value
+#include <string>                     // For String Operations
+#include <pthread.h>                  // for timing
+#include <time.h>                     // Timing & Code Benchmarking
+#include <map>                        // Storing Runtimes
+#include <fstream>                    // write to csv file
+#include <thread>                     // for Multi Threading (Parallel Processing)
+#include <mutex>                      // To lock the resources so that output dont interleave
+#include <algorithm>                  //sorting Algorithms
+#include <memory>                     // defined std::unique_ptr
+#include "minisat/core/SolverTypes.h" // defines Var and Lit
+#include "minisat/core/Solver.h"      // defines Solver
 
-class a2
+using namespace std;     // a scope to the identifiers of Minisat Library
+using namespace Minisat; // a scope to the identifiers of Minisat library
+
+vector<int> output_CNF;
+vector<int> output_VC1;
+vector<int> output_VC2;
+
+//=================PART OF ANALYSIS STARTS====================================
+vector<long> CNF_runtimes;
+vector<long> VC1_runtimes;
+vector<long> VC2_runtimes;
+// vector<double> CNF_approx_ratio;
+// vector<double> VC1_approx_ratio;
+// vector<double> VC2_approx_ratio;
+//=================PART OF ANALYSIS ENDS====================================
+
+vector<int> vertice_list;
+mutex Terminal_lock;
+
+
+//===========================For Testing Purpose==============================================
+// void print_1D(vector<int> vec)
+// {
+//     int size = (int)vec.size();
+//     for (int i = 0; i < size; i++)
+//     {
+//         if (i == size - 1)
+//         {
+//             cout << vec[i];
+//         }
+//         else
+//         {
+//             cout << vec[i] << ",";
+//         }
+//     }
+//     cout << endl;
+// }
+
+// void print_runtime(vector<long> vec)
+// {
+//     int size = (int)vec.size();
+//     for (int i = 0; i < size; i++)
+//     {
+//         if (i == size - 1)
+//         {
+//             cout << vec[i];
+//         }
+//         else
+//         {
+//             cout << vec[i] << ",";
+//         }
+//     }
+//     cout << endl;
+// }
+//==================================================================================================
+
+//========================================= MAIN ===================================================
+class Project
 {
-
     private:
-        
-        int number_of_nodes;
-        vector<vector<int>> neighbour;                          //Vector of vectors of integer values called neighbour                                
-    
+        vector<vector<int>> adjList;            // Vector list to store adjacency list
+
     public:
-    
-//Written below is constructor of class. neighbour has number_of_nodes + 1 to make sure things start from 1 instead of 0.
+        int number_of_nodes;                    // Number of Vertices
+        
+        Project(int number_of_nodes) : 
+            number_of_nodes(number_of_nodes), 
+            adjList(number_of_nodes + 1) {}     // Initialising the list
 
-        a2(int number_of_nodes): number_of_nodes(number_of_nodes), neighbour(number_of_nodes + 1) {}
-
-// Function to be able to access private variable from outside the class
+    // Function to be able to access private variable from outside the class
 
     const vector<vector<int>>& getNeighbours() const
     {
-        return neighbour;
+        return adjList;
     }
 
-// Function to add edges to the vector to populate the graph before traversing and finding shortest path
-
-    void edge(int source, int dest)
+    void edge(int src, int dest)
     {
         // For valid input, source and destination cannot be greater than the total number of nodes(Vertices) in the graph
-        if((source <= number_of_nodes) && (dest <= number_of_nodes))
+        if ((number_of_nodes >= src) && (number_of_nodes >= dest))
         {
-            neighbour[source].push_back(dest);                  //Will add one node to the vector inside the vector of nodes. 
-            neighbour[dest].push_back(source);                  //Maybe works similar to dictionary?
+            adjList[src].push_back(dest);               //Will add one node to the vector inside the vector of nodes.
+            adjList[dest].push_back(src);               //Maybe works similar to dictionary?
         }
         else
         {
-            std::cout << "Error: Invalid Input" << std::endl;
+            std::cout << "Error: Invalid Vertex Input" << std::endl;
         }
     }
 
-//Making a boolean function that returns true if path exists and false if it doesnt
+    //Making a boolean function that returns true if path exists and false if it doesnt
 
-    bool pathExists(int source, int dest, vector<int> &before)
+    bool pathExists(int src, int dest, vector<int> &pred, vector<int> &dist)
     {
-        vector<bool> visited(number_of_nodes + 1, false);       //Vector to keep track of which node has been visited. False by default
-        queue<int> q;                                           //To go to next node
+        vector<bool> visited(number_of_nodes + 1, false);          //Vector to keep track of which node has been visited. False by default
+        queue<int> q;                                       //To go to next node
 
-        visited[source] = true;                                 //Start from source, we need to show that it has been visited
-        q.push(source);                                         //Current node is not present, will make this current node
+        visited[src] = true;                                //Start from source, we need to show that it has been visited
+        dist[src] = 0;
+        q.push(src);                                        //Current node is not present, will make this current node
 
-        while(!q.empty())
+        while (!q.empty())
         {
             int u = q.front();
             q.pop();
 
-            for(int v : neighbour[u])                           //V will take values that are neighbouring points of node u
+            for (int v : adjList[u])                        //V will take values that are neighbouring points of node u
             {
-                if(!visited[v])
+                if (!visited[v])
                 {
                     visited[v] = true;
-                    before[v] = u;                              // This means node u comes before v
-                    q.push(v);                                  // We want the next node(v) to become the current node
-                }
-                if (v == dest)                                  // Finally when we get to the destination, do not continue the function
-                {
-                    return true;
+                    dist[v] = dist[u] + 1;
+                    pred[v] = u;                            // This means node u comes before v
+                    q.push(v);                              // We want the next node(v) to become the current node
+
+                    if (v == dest)                          // Finally when we get to the destination, do not continue the function
+                    {
+                        return true;
+                    }
                 }
             }
         }
 
-        return false;                                           // If we never reach the destination
+        return false;                                       // If we never reach the destination
     }
 
-// Function to print shortest path
+    // Function to print shortest path
 
-    void shortestPath(int source, int dest)
+    void shortestPath(int start, int end)
     {
-        vector<int> before(number_of_nodes + 1, -1);            //Making vector of nodes that come before a current node. Initializing all values to -1 to show nothing before this node.
-        
+        vector<int> pred(number_of_nodes + 1, -1);                 //Making vector of nodes that come before a current node. Initializing all values to -1 to show nothing before this node.
+        vector<int> dist(number_of_nodes + 1, INT_MAX);
+
         // The following will only execute if the path from source to destination exists. If not, give error.
 
-        if(pathExists(source, dest, before))                    //Should return true or false
+        if (pathExists(start, end, pred, dist))             //Should return true or false
         {
-            vector<int> path;                                   //Keep track of the path taken
-            int now = dest;                                     //The current vertex we are at now. Starting from destinaton
-            
-            while (now != -1)                                   //If current vertex becomes -1, we reached source
+            vector<int> path;                               //Keep track of the path taken
+            int current = end;                              //The current vertex we are at now. Starting from destinaton
+
+            while (current != -1)                           //If current vertex becomes -1, we reached source
             {
-                path.push_back(now);                            //Adding the current vertex to the path
-                now = before[now];                              //Changing now to node before the current vertex
+                path.push_back(current);                    //Adding the current vertex to the path
+                current = pred[current];                    //Changing now to node before the current vertex
             }
 
-            std::reverse(path.begin(), path.end());             //To reverse the oder of the path we found. This is done because the path we get is from destination to source
+            reverse(path.begin(), path.end());              //To reverse the oder of the path we found. This is done because the path we get is from destination to source
 
             //Now printing the path
 
-            for (int i=0; i < int(path.size()); i++)
+            for (int i = 0; i < (int)path.size(); ++i)
             {
-                std::cout << path[i];
-                if (i < int(path.size())-1)
+                cout << path[i];
+                if (i < (int)path.size() - 1)
                 {
-                    std::cout << "-";
+                    cout << "-";
                 }
             }
-            std::cout << endl;
+            cout << endl;
         }
         else
         {
-            std::cout << "Error: Path does not exist." << endl;
+            cout << "Error: Given source and destination are not connected" << endl;
         }
     }
 
-    void CNF(int numNodes) 
+    // This time we return the vertex cover back which is a vector of integers, so function will also be of that type
+
+    vector<int> CNF(int number_of_nodes, vector<vector<int>> adjList, int k) 
     {
-
-        int k = numNodes;
-
-        while (k > -1)
-        {
-
-            unique_ptr<Solver> solver(new Solver()); 
-            vector<vector<Lit>> x(numNodes + 1, vector<Lit>(k + 1));
-
-            // At least one vertex is the ith vertex in the vertex cover
-            for (int i = 1; i <= k; i++)
-            {
-                vec<Lit> clauses_Literals;
-                for (int j = 1; j <= numNodes; j++)
-                {
-                    x[j][i] = mkLit(solver->newVar());
-                    clauses_Literals.push(x[j][i]);
-                }
-                solver->addClause(clauses_Literals);
-            }
-
-            // No one vertex can appear twice in a vertex cover
-            for (int m = 1; m <= numNodes; m++)
-            {
-                for (int p = 1; p <= k; p++)
-                {
-                    for (int q = p + 1; q <= k; q++)
-                    {
-                        solver->addClause(~x[m][p], ~x[m][q]);
-                    }
-                }
-            }
-
-            // No more than one vertex appears in the mth position of the vertex cover
-            for (int m = 1; m <= k; m++)
-            {
-                for (int p = 1; p <= numNodes; p++)
-                {
-                    for (int q = p + 1; q <= numNodes; q++)
-                    {
-                        solver->addClause(~x[p][m], ~x[q][m]);
-                    }
-                }
-            }
-
-            // Every edge is incident to at least one vertex in the vertex cover
-            for (int u = 1; u < numNodes; u++)
-            {
-                for (int v : neighbour[u])
-                {
-                    vec<Lit> clauses_Literals;
-                    for (int l = 1; l <= k; l++)
-                    {
-                        clauses_Literals.push(x[u][l]);
-                        clauses_Literals.push(x[v][l]);
-                    }
-                    solver->addClause(clauses_Literals);
-                }
-            }
-
-            // Solve the CNF formula
-            bool res = solver->solve();
-
-            if (res)
-            {
-                k--;
-            }
-            else
-            {
-                break;
-            }
-        }
-
-        k++;
-
         unique_ptr<Solver> solver(new Solver());
-        vector<vector<Lit>> x(numNodes + 1, vector<Lit>(k + 1));
-        // At least one vertex is the ith vertex in the vertex cover
+        vector<vector<Lit>> x(number_of_nodes + 1, vector<Lit>(k + 1));
+       
+        //  At least one vertex is the ith vertex in the vertex cover
         for (int i = 1; i <= k; i++)
         {
             vec<Lit> clauses_Literals;
-            for (int j = 1; j <= numNodes; j++)
+            for (int j = 1; j <= number_of_nodes; j++)
             {
                 x[j][i] = mkLit(solver->newVar());
                 clauses_Literals.push(x[j][i]);
             }
             solver->addClause(clauses_Literals);
         }
-        // No one vertex can appear twice in a vertex cover
-        for (int m = 1; m <= numNodes; m++)
+        
+        //  No one vertex can appear twice in a vertex cover
+        for (int m = 1; m <= number_of_nodes; m++)
         {
             for (int p = 1; p <= k; p++)
             {
@@ -221,21 +219,23 @@ class a2
                 }
             }
         }
-        // No more than one vertex appears in the mth position of the vertex cover
+        
+        //  No more than one vertex appears in the mth position of the vertex cover
         for (int m = 1; m <= k; m++)
         {
-            for (int p = 1; p <= numNodes; p++)
+            for (int p = 1; p <= number_of_nodes; p++)
             {
-                for (int q = p + 1; q <= numNodes; q++)
+                for (int q = p + 1; q <= number_of_nodes; q++)
                 {
                     solver->addClause(~x[p][m], ~x[q][m]);
                 }
             }
         }
-        // Every edge is incident to at least one vertex in the vertex cover
-        for (int u = 1; u < numNodes; u++)
+        
+        //  Every edge is incident to at least one vertex in the vertex cover
+        for (int u = 1; u < number_of_nodes; u++)
         {
-            for (int v : neighbour[u])
+            for (int v : adjList[u])
             {
                 vec<Lit> clauses_Literals;
                 for (int l = 1; l <= k; l++)
@@ -249,12 +249,11 @@ class a2
 
         // Solve the CNF formula
         bool res = solver->solve();
-        // cout << k << endl;
 
+        vector<int> vertexCover;
         if (res)
         {
-            vector<int> vertexCover;
-            for (int i = 1; i <= numNodes; i++)
+            for (int i = 1; i <= number_of_nodes; i++)
             {
                 for (int j = 1; j <= k; j++)
                 {
@@ -264,61 +263,254 @@ class a2
                     }
                 }
             }
-            for (int i = 0; i < (int)vertexCover.size(); i++)
-            {
-                cout << vertexCover[i];
-                if (i < (int)vertexCover.size() - 1)
-                {
-                    cout << " ";
-                }
-            }
-            cout << endl;
         }
+        return vertexCover;
     }
 
+    void runApproxVC1(int number_of_nodes, vector<vector<int>> adjList_VC1)
+    {
+        struct timespec start, end;
+        clockid_t clock_id;
+        pthread_getcpuclockid(pthread_self(), &clock_id);
+        clock_gettime(clock_id, &start);
+
+        vector<int> vertexCover;
+        bool reductionOccurred = true;
+
+        while (reductionOccurred)
+        {
+            reductionOccurred = false;
+
+            int maxDegreeVertex = -1;
+            int maxDegree = -1;
+
+            for (int i = 1; i <= number_of_nodes; ++i)
+            {
+                int degree = adjList_VC1[i].size();
+                if (degree > maxDegree && degree != 0)
+                {
+                    maxDegree = degree;
+                    maxDegreeVertex = i;
+                }
+            }
+
+            if (maxDegreeVertex == -1)
+                break;
+
+            vertexCover.push_back(maxDegreeVertex);
+
+            // Remove edges incident on the selected vertex
+            for (int neighbor : adjList_VC1[maxDegreeVertex])
+            {
+                for (auto it = adjList_VC1[neighbor].begin(); it != adjList_VC1[neighbor].end();)
+                {
+                    if (*it == maxDegreeVertex)
+                    {
+                        it = adjList_VC1[neighbor].erase(it);
+                        reductionOccurred = true;
+                    }
+                    else
+                    {
+                        ++it;
+                    }
+                }
+            }
+
+            // Remove the selected vertex and its incident edges
+            adjList_VC1[maxDegreeVertex].clear();
+        }
+
+        sort(vertexCover.begin(), vertexCover.end());
+        lock_guard<mutex> lock(Terminal_lock);
+        cout << "APPROX-VC-1: ";
+
+        for (int i = 0; i < (int)vertexCover.size(); i++)
+        {
+            cout << vertexCover[i];
+            output_VC1.push_back(vertexCover[i]);
+            if (i < (int)vertexCover.size() - 1)
+            {
+                cout << ",";
+            }
+        }
+        cout << endl;
+        Terminal_lock.unlock();
+
+
+        clock_gettime(clock_id, &end);
+        long sec = end.tv_sec - start.tv_sec;
+        long nsec = end.tv_nsec - start.tv_nsec;
+        long elapsed_time_micro = sec * 1000000 + nsec / 1000;
+        VC1_runtimes.push_back(elapsed_time_micro);
+        pthread_exit(NULL);
+    }
+
+    void runApproxVC2(int number_of_nodes, vector<vector<int>> adjList_VC2)
+    {
+        struct timespec start, end;
+        clockid_t clock_id;
+        pthread_getcpuclockid(pthread_self(), &clock_id);
+        clock_gettime(clock_id, &start);
+
+        vector<int> vertexCover;
+
+        while (true)
+        {
+            bool foundEdge = false;
+            for (int u = 1; u <= number_of_nodes; u++)
+            {
+                for (int v : adjList_VC2[u])
+                {
+                    if ((u != 0) && (v != 0) && (adjList_VC2[v].size() != 0) && (adjList_VC2[u].size() != 0))
+                    {
+                        foundEdge = true;
+                        vertexCover.push_back(u);
+                        vertexCover.push_back(v);
+
+                        // // Remove edges incident on u and v
+                        adjList_VC2[u].clear();
+                        adjList_VC2[v].clear();
+                    }
+                }
+            }
+
+            if (!foundEdge)
+                break;
+        }
+
+        sort(vertexCover.begin(), vertexCover.end());
+        lock_guard<mutex> lock(Terminal_lock);
+        cout << "APPROX-VC-2: ";
+        for (int i = 0; i < (int)vertexCover.size(); i++)
+        {
+            cout << vertexCover[i];
+            output_VC2.push_back(vertexCover[i]);
+            if (i < (int)vertexCover.size() - 1)
+            {
+                cout << ",";
+            }
+        }
+        cout << endl;
+        Terminal_lock.unlock();
+ 
+
+        clock_gettime(clock_id, &end);
+        long sec = end.tv_sec - start.tv_sec;
+        long nsec = end.tv_nsec - start.tv_nsec;
+        long elapsed_time_micro = sec * 1000000 + nsec / 1000;
+        VC2_runtimes.push_back(elapsed_time_micro);
+        pthread_exit(NULL);
+    }
+
+    vector<int> VC_Binary_Search(int k_low,int k_high)
+    {
+         
+        vector<int> vertex_cover_binary;
+        vector< vector< int > > empty_adjList(number_of_nodes+1);
+        
+        while(k_low<=k_high)
+        {
+            int mid = floor((k_low+k_high)/2);
+            vector<int> vc = CNF(number_of_nodes, adjList, mid);
+            if(vc.size() == 0 && adjList != empty_adjList)
+            {
+                k_low = mid+1;
+            }
+            else
+            {
+                vertex_cover_binary = vc;
+                k_high = mid-1;
+            }
+        }
+        return vertex_cover_binary;
+    }
 };
 
-int main(int argc, char** argv) {
+void* threadFunction1(void* graph) {
+    Project* myObj = static_cast<Project*>(graph);
 
+    struct timespec start, end;
+    clockid_t clock_id;
+    pthread_getcpuclockid(pthread_self(), &clock_id);
+    clock_gettime(clock_id, &start);
+
+    vector<int> vertex_cover_print = myObj->VC_Binary_Search(-1, myObj->number_of_nodes);
+
+    // ===== MAIN CODE =======
+
+    lock_guard<mutex> lock(Terminal_lock);
+    cout << "CNF-SAT-VC: ";
+    for (int i = 0; i < (int)vertex_cover_print.size(); i++)
+    {
+        cout << vertex_cover_print[i];
+        output_CNF.push_back(vertex_cover_print[i]);
+        if (i < (int)vertex_cover_print.size() - 1)
+        {
+            cout << ",";
+        }
+    }
+    cout << endl;
+    Terminal_lock.unlock();
+
+    clock_gettime(clock_id, &end);
+    long sec = end.tv_sec - start.tv_sec;
+    long nsec = end.tv_nsec - start.tv_nsec;
+    long elapsed_time_micro = sec * 1000000 + nsec / 1000;
+    CNF_runtimes.push_back(elapsed_time_micro);
+
+    pthread_exit(NULL);
+    return nullptr;
+}
+
+void* threadFunction2(void* graph) {
+    Project* myObj = static_cast<Project*>(graph);
+    myObj->runApproxVC1(myObj->number_of_nodes, myObj->getNeighbours());
+    return nullptr;
+}
+
+void* threadFunction3(void* graph) {
+    Project* myObj = static_cast<Project*>(graph);
+    myObj->runApproxVC2(myObj->number_of_nodes, myObj->getNeighbours());
+    return nullptr;
+}
+
+// main function
+int handle_IO()
+{
     int number_of_nodes = 0;
-    int vertex = 0;                                              //To keep track of if command V was done before or not
-    int edge_flag = 0;
+    int vertex = 0;
+    int e_flag = 0;
 
-    a2 obj(number_of_nodes);
+    Project graph(number_of_nodes);
+    mutex mtx;
 
-    while(true){
-
-        std::string input;
-        getline(cin, input);
-
-        // If we reach end of input, break out of loop
-
-        if(cin.eof())
+    while (true)
+    {
+        string input;
+        if (cin.eof())
         {
             break;
         }
 
-        // Regular expressions for Vertices, Edges and Shortest path commands
+        getline(cin, input);
+
+        if (input.empty())
+        {
+            continue;
+        }
 
         std::regex Vpattern(R"(\bV\s+(\d+)\s*)");
         std::regex Epattern(R"(^E\s+\{(?:<(\d+),(\d+)>(?:,\s*<\d+,\d+>)*)?\}$)");
         std::regex Spattern(R"(^s\s+(\d+)\s+(\d+)\s*)");
         std::regex spacepattern(R"(^\s*)");
 
-        // To store regular expression matches in a variable to be used later
-
-        std::smatch matches;
-
-        // To keep track of where the regular expressions are in order to match further as and when required for vertices, edges or shortest path
-        
+        smatch matches;
         string::const_iterator searchStart(input.cbegin());
 
-        //Checking conditions for commands
-
-        if(regex_match(input, matches, Vpattern))                //Enters if command matches Vertex input expression
+        if (regex_match(input, matches, Vpattern))
         {
             vertex = 0;
-            edge_flag = 0;
+            e_flag = 0;
 
             if(int(stoi(matches[1].str())) <= 1)
             {
@@ -328,102 +520,200 @@ int main(int argc, char** argv) {
             }
             vertex = 1;
             number_of_nodes = int(stoi(matches[1].str()));
-            obj = a2(number_of_nodes);
+            graph = Project(number_of_nodes);
         }
-        else if (regex_match(input, matches, Epattern))          // Enters if command matches Edge input expression
+        else if (regex_match(input, matches, Epattern))
         {
-            std::regex edgepattern("<(\\d+),(\\d+)>");
+
+            regex pattern("<(\\d+),(\\d+)>");
             if (vertex == 0)
             {
                 std::cout << "Error: Vertices dont exist" << std::endl;
                 continue;
             }
-            if (edge_flag == 1)
+            if (e_flag == 1)
             {
                 std::cout << "Error: Invalid Input" << std::endl;
                 vertex = 0;
-                edge_flag = 0;
+                e_flag = 0;
                 continue;
             }
-            if(vertex == 1 && edge_flag == 0)
+            if (vertex == 1 && e_flag == 0)
             {
-                obj = a2(number_of_nodes);
-
-                // The following will look for first instance of the edgepattern
-
-                while (std::regex_search(searchStart,input.cend(),matches,edgepattern))
+                graph = Project(number_of_nodes);
+                while (std::regex_search(searchStart, input.cend(), matches, pattern))
                 {
-                    int v1 = stoi(matches[1].str());            //To get the vertex value
-                    int v2 = stoi(matches[2].str());
-                    
+                    int xi = stoi(matches[1].str());
+                    int yi = stoi(matches[2].str());
+                    // cout << "xi: " << xi << ", yi: " << yi << endl;
+
+                    // if ((number_of_nodes >= xi) && (number_of_nodes >= yi) && (xi != 0) && (yi != 0) && (xi != yi))
+                    // {
+                    //     graph.edge(xi, yi);
+                    //     e_flag = 1;
+                    // }
+                    // else
+                    // {
+                    //     cout << "Error: Invalid Edge/vertex Input" << endl;
+                    //     graph = Project(number_of_nodes);
+                    //     e_flag = 0;
+                    //     break;
+                    // }
+
+                    // searchStart = matches.suffix().first;
+
                     // Accessing private variable from the class
                     
-                    const vector<vector<int>>& neighbour = obj.getNeighbours();
+                    const vector<vector<int>>& neighbour = graph.getNeighbours();
                     
                     //Condition to check if the edge already exists.
 
-                    for (int check : neighbour[v1])
+                    for (int check : neighbour[xi])
                     {
-                        if (check == v2)
+                        if (check == yi)
                         {
                             std::cout << "Error: Invalid Input" << std::endl;
                             vertex = 0;
                             break;
                         }
                     }
-                    if ((v1 <= number_of_nodes) && (v2 <= number_of_nodes) && (v1 != 0) && (v2 != 0) && (v1 != v2))
+                    if ((xi <= number_of_nodes) && (yi <= number_of_nodes) && (xi != 0) && (yi != 0) && (xi != yi))
                     {
-                        obj.edge(v1,v2);
-                        edge_flag = 1;
+                        graph.edge(xi,yi);
+                        e_flag = 1;
                     }
                     else
                     {
                         std::cout << "Error: Invalid Input." << std::endl;
-                        edge_flag = 0;
+                        e_flag = 0;
                         vertex = 0;
-                        obj = a2(number_of_nodes);
+                        graph = Project(number_of_nodes);
                         break;
                     }
                     searchStart = matches.suffix().first;
                 }
-                obj.CNF(number_of_nodes);
             }
+            // else
+            // {
+            //     cout << "Error: V E E not valid :: Provide first V then E" << endl;
+            // }
+
+            pthread_t t1,t2,t3;
+            pthread_create(&t1, nullptr, &threadFunction1, &graph);
+            pthread_create(&t2, nullptr, &threadFunction2, &graph);
+            pthread_create(&t3, nullptr, &threadFunction3, &graph);
+
+                struct timespec timeout;
+                clock_gettime(CLOCK_REALTIME, &timeout);
+                timeout.tv_sec += 60;
+
+                // Wait for the cnf_thread to finish or timeout
+                int join_result = pthread_timedjoin_np(t1, nullptr, &timeout);
+
+                if(join_result == ETIMEDOUT)
+                {
+                    cout<<"CNF-SAT-VC: timeout"<<endl;
+                    return 0;
+                }
+
+            pthread_join(t1, nullptr);
+            pthread_join(t2, nullptr);
+            pthread_join(t3, nullptr);
+            
+            //=========================== ANALYSIS PART START====================================================
+
+            // int x_min = min(min((int)output_CNF.size(), (int)output_VC1.size()), (int)output_VC2.size());
+
+            // // Print approximation ratio
+            // if(x_min != 0)
+            // {
+            // CNF_approx_ratio.push_back((double)output_CNF.size() / x_min);
+            // VC1_approx_ratio.push_back((double)output_VC1.size() / x_min);
+            // VC2_approx_ratio.push_back((double)output_VC2.size() / x_min);
+
+            // }
+            // else
+            // {
+            // CNF_approx_ratio.push_back((double)output_CNF.size() / output_VC1.size());
+            // VC1_approx_ratio.push_back((double)output_VC1.size() / output_VC1.size());
+            // VC2_approx_ratio.push_back((double)output_VC2.size() / output_VC1.size());
+            // }
+
+
+            // ofstream myfile;
+            // myfile.open("../runtime.csv");
+            // myfile << "graphspec,vertices,CNF,VC1,VC2\n";
+            // for (int i = 0; i < (int)CNF_runtimes.size(); i++)
+            // {
+            //     myfile << i + 1 << "," << vertice_list[i] << "," << CNF_runtimes[i] << "," << VC1_runtimes[i] << "," << VC2_runtimes[i] << "\n";
+            // }
+            // myfile.close();
+
+            // ofstream myfile2;
+            // myfile2.open("../approx_ratio.csv");
+            // myfile2 << "graphspec,vertices,CNF,VC1,VC2\n";
+            // for (int i = 0; i < (int)CNF_approx_ratio.size(); i++)
+            // {
+            //     myfile2 << i + 1 << "," << vertice_list[i] << "," << CNF_approx_ratio[i] << "," << VC1_approx_ratio[i] << "," << VC2_approx_ratio[i] << "\n";
+            // }
+            // myfile2.close();
+
+            // // Clear Vectors before adding data for another graph spec
+            // output_CNF.clear();
+            // output_VC1.clear();
+            // output_VC2.clear();
+
+            //==========================ANALYSIS PART ENDS==============================================
         }
-        else if (regex_match(input, matches, Spattern))          // Enters if command matches Shortes path input expression
+        else if (regex_match(input, matches, Spattern))
         {
-            int source = stoi(matches[1].str());
-            int dest = stoi(matches[2].str());
+            int start = stoi(matches[1].str());
+            int end = stoi(matches[2].str());
 
             if(vertex==0)
             {
                 std::cout << "Error: Vertices dont exist" << std::endl;
                 continue;
             }
-            if (source > number_of_nodes || dest > number_of_nodes || source == 0 || dest == 0)
+            if (start > number_of_nodes || end > number_of_nodes || start == 0 || end == 0)
             {
-                std::cout << "Error: Source or Destination does not exist." << std::endl;
+                cout << "Error: Given source or destination do not exist." << endl;
                 continue;
             }
-            if (source==dest)
+
+            if (start == end)
             {
                 std::cout << "Error: Invalid Input." << std::endl;
             }
             else
             {
-                obj.shortestPath(source, dest);                  //Function to print shortest path
-            }   
+                graph.shortestPath(start, end);
+            }
         }
         else if (regex_match(input, matches, spacepattern))
         {
             continue;
         }
-        else                                                     // Enters and shows error if command does not match any input expression
+        else
         {
             vertex = 0;
-            std::cout << "Error: Invalid Input." << std:: endl;
+            cout << "Error: Invalid Input Format" << endl;
         }
-
     }
+
+    return 0;
+}
+
+void* t_handle_IO(void* args){
+    handle_IO();
+    return nullptr;
+}
+
+int main(){
+    // Thread 1
+    pthread_t thread_IO;
+    pthread_create(&thread_IO, NULL, t_handle_IO, NULL);
+    pthread_join(thread_IO, NULL);
 
     return 0;
 }
