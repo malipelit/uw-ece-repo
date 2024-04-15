@@ -1,9 +1,3 @@
-/*
-# Link pthread library - ensuring proper linking of pthreads
-find_package(Threads REQUIRED)
-target_link_libraries(ece650-prj Threads::Threads)
-*/
-
 // Importing Neccessary header files
 
 #include <iostream>                   // takes care of input/output streams
@@ -18,7 +12,7 @@ target_link_libraries(ece650-prj Threads::Threads)
 #include <fstream>                    // write to csv file
 #include <thread>                     // for Multi Threading (Parallel Processing)
 #include <mutex>                      // To lock the resources so that output dont interleave
-#include <algorithm>                  //sorting Algorithms
+#include <algorithm>                  // sorting Algorithms
 #include <memory>                     // defined std::unique_ptr
 #include "minisat/core/SolverTypes.h" // defines Var and Lit
 #include "minisat/core/Solver.h"      // defines Solver
@@ -26,58 +20,26 @@ target_link_libraries(ece650-prj Threads::Threads)
 using namespace std;     // a scope to the identifiers of Minisat Library
 using namespace Minisat; // a scope to the identifiers of Minisat library
 
+int timeout_count = 1;
+
 vector<int> output_CNF;
 vector<int> output_VC1;
 vector<int> output_VC2;
 
 //=================PART OF ANALYSIS STARTS====================================
+vector<int> vertexCoverCNF;
+vector<int> vertexCoverAPPROX1;
+vector<int> vertexCoverAPPROX2;
 vector<long> CNF_runtimes;
 vector<long> VC1_runtimes;
 vector<long> VC2_runtimes;
-// vector<double> CNF_approx_ratio;
-// vector<double> VC1_approx_ratio;
-// vector<double> VC2_approx_ratio;
+vector<double> CNF_approx_ratio;
+vector<double> VC1_approx_ratio;
+vector<double> VC2_approx_ratio;
 //=================PART OF ANALYSIS ENDS====================================
 
 vector<int> vertice_list;
 mutex Terminal_lock;
-
-
-//===========================For Testing Purpose==============================================
-// void print_1D(vector<int> vec)
-// {
-//     int size = (int)vec.size();
-//     for (int i = 0; i < size; i++)
-//     {
-//         if (i == size - 1)
-//         {
-//             cout << vec[i];
-//         }
-//         else
-//         {
-//             cout << vec[i] << ",";
-//         }
-//     }
-//     cout << endl;
-// }
-
-// void print_runtime(vector<long> vec)
-// {
-//     int size = (int)vec.size();
-//     for (int i = 0; i < size; i++)
-//     {
-//         if (i == size - 1)
-//         {
-//             cout << vec[i];
-//         }
-//         else
-//         {
-//             cout << vec[i] << ",";
-//         }
-//     }
-//     cout << endl;
-// }
-//==================================================================================================
 
 //========================================= MAIN ===================================================
 class Project
@@ -274,7 +236,7 @@ class Project
         pthread_getcpuclockid(pthread_self(), &clock_id);
         clock_gettime(clock_id, &start);
 
-        vector<int> vertexCover;
+        // vector<int> vertexCover;
         bool reductionOccurred = true;
 
         while (reductionOccurred)
@@ -297,7 +259,7 @@ class Project
             if (maxDegreeVertex == -1)
                 break;
 
-            vertexCover.push_back(maxDegreeVertex);
+            vertexCoverAPPROX1.push_back(maxDegreeVertex);
 
             // Remove edges incident on the selected vertex
             for (int neighbor : adjList_VC1[maxDegreeVertex])
@@ -320,21 +282,21 @@ class Project
             adjList_VC1[maxDegreeVertex].clear();
         }
 
-        sort(vertexCover.begin(), vertexCover.end());
-        lock_guard<mutex> lock(Terminal_lock);
-        cout << "APPROX-VC-1: ";
+        sort(vertexCoverAPPROX1.begin(), vertexCoverAPPROX1.end());
+        // lock_guard<mutex> lock(Terminal_lock);
+        // cout << "APPROX-VC-1: ";
 
-        for (int i = 0; i < (int)vertexCover.size(); i++)
-        {
-            cout << vertexCover[i];
-            output_VC1.push_back(vertexCover[i]);
-            if (i < (int)vertexCover.size() - 1)
-            {
-                cout << ",";
-            }
-        }
-        cout << endl;
-        Terminal_lock.unlock();
+        // for (int i = 0; i < (int)vertexCover.size(); i++)
+        // {
+        //     cout << vertexCover[i];
+        //     output_VC1.push_back(vertexCover[i]);
+        //     if (i < (int)vertexCover.size() - 1)
+        //     {
+        //         cout << ",";
+        //     }
+        // }
+        // cout << endl;
+        // Terminal_lock.unlock();
 
 
         clock_gettime(clock_id, &end);
@@ -352,7 +314,7 @@ class Project
         pthread_getcpuclockid(pthread_self(), &clock_id);
         clock_gettime(clock_id, &start);
 
-        vector<int> vertexCover;
+        // vector<int> vertexCover;
 
         while (true)
         {
@@ -364,8 +326,8 @@ class Project
                     if ((u != 0) && (v != 0) && (adjList_VC2[v].size() != 0) && (adjList_VC2[u].size() != 0))
                     {
                         foundEdge = true;
-                        vertexCover.push_back(u);
-                        vertexCover.push_back(v);
+                        vertexCoverAPPROX2.push_back(u);
+                        vertexCoverAPPROX2.push_back(v);
 
                         // // Remove edges incident on u and v
                         adjList_VC2[u].clear();
@@ -378,20 +340,20 @@ class Project
                 break;
         }
 
-        sort(vertexCover.begin(), vertexCover.end());
-        lock_guard<mutex> lock(Terminal_lock);
-        cout << "APPROX-VC-2: ";
-        for (int i = 0; i < (int)vertexCover.size(); i++)
-        {
-            cout << vertexCover[i];
-            output_VC2.push_back(vertexCover[i]);
-            if (i < (int)vertexCover.size() - 1)
-            {
-                cout << ",";
-            }
-        }
-        cout << endl;
-        Terminal_lock.unlock();
+        sort(vertexCoverAPPROX2.begin(), vertexCoverAPPROX2.end());
+        // lock_guard<mutex> lock(Terminal_lock);
+        // cout << "APPROX-VC-2: ";
+        // for (int i = 0; i < (int)vertexCover.size(); i++)
+        // {
+        //     cout << vertexCover[i];
+        //     output_VC2.push_back(vertexCover[i]);
+        //     if (i < (int)vertexCover.size() - 1)
+        //     {
+        //         cout << ",";
+        //     }
+        // }
+        // cout << endl;
+        // Terminal_lock.unlock();
  
 
         clock_gettime(clock_id, &end);
@@ -434,29 +396,35 @@ void* threadFunction1(void* graph) {
     pthread_getcpuclockid(pthread_self(), &clock_id);
     clock_gettime(clock_id, &start);
 
-    vector<int> vertex_cover_print = myObj->VC_Binary_Search(-1, myObj->number_of_nodes);
+    if(timeout_count) {
+        vertexCoverCNF = myObj->VC_Binary_Search(-1, myObj->number_of_nodes);
 
-    // ===== MAIN CODE =======
+        // ===== MAIN CODE =======
 
-    lock_guard<mutex> lock(Terminal_lock);
-    cout << "CNF-SAT-VC: ";
-    for (int i = 0; i < (int)vertex_cover_print.size(); i++)
-    {
-        cout << vertex_cover_print[i];
-        output_CNF.push_back(vertex_cover_print[i]);
-        if (i < (int)vertex_cover_print.size() - 1)
-        {
-            cout << ",";
-        }
+        // lock_guard<mutex> lock(Terminal_lock);
+        // cout << "CNF-SAT-VC: ";
+        // for (int i = 0; i < (int)vertex_cover_print.size(); i++)
+        // {
+        //     cout << vertex_cover_print[i];
+        //     output_CNF.push_back(vertex_cover_print[i]);
+        //     if (i < (int)vertex_cover_print.size() - 1)
+        //     {
+        //         cout << ",";
+        //     }
+        // }
+        // cout << endl;
+        // Terminal_lock.unlock();
+
+        clock_gettime(clock_id, &end);
+        long sec = end.tv_sec - start.tv_sec;
+        long nsec = end.tv_nsec - start.tv_nsec;
+        long elapsed_time_micro = sec * 1000000 + nsec / 1000;
+        CNF_runtimes.push_back(elapsed_time_micro);
     }
-    cout << endl;
-    Terminal_lock.unlock();
-
-    clock_gettime(clock_id, &end);
-    long sec = end.tv_sec - start.tv_sec;
-    long nsec = end.tv_nsec - start.tv_nsec;
-    long elapsed_time_micro = sec * 1000000 + nsec / 1000;
-    CNF_runtimes.push_back(elapsed_time_micro);
+    else {
+        long elapsed_time_micro = 3 * 100000000;
+        CNF_runtimes.push_back(elapsed_time_micro);
+    }
 
     pthread_exit(NULL);
     return nullptr;
@@ -521,6 +489,7 @@ int handle_IO()
             vertex = 1;
             number_of_nodes = int(stoi(matches[1].str()));
             graph = Project(number_of_nodes);
+            vertice_list.push_back(number_of_nodes);
         }
         else if (regex_match(input, matches, Epattern))
         {
@@ -598,70 +567,126 @@ int handle_IO()
             //     cout << "Error: V E E not valid :: Provide first V then E" << endl;
             // }
 
+            
+            vertexCoverCNF.clear();
+            vertexCoverAPPROX1.clear();
+            vertexCoverAPPROX2.clear();
+
             pthread_t t1,t2,t3;
             pthread_create(&t1, nullptr, &threadFunction1, &graph);
             pthread_create(&t2, nullptr, &threadFunction2, &graph);
             pthread_create(&t3, nullptr, &threadFunction3, &graph);
 
-                struct timespec timeout;
-                clock_gettime(CLOCK_REALTIME, &timeout);
-                timeout.tv_sec += 60;
+            struct timespec timeout;
+            clock_gettime(CLOCK_REALTIME, &timeout);
+            timeout.tv_sec += 60;
 
-                // Wait for the cnf_thread to finish or timeout
-                int join_result = pthread_timedjoin_np(t1, nullptr, &timeout);
+            // Wait for the cnf_thread to finish or timeout
+            int join_result = pthread_timedjoin_np(t1, nullptr, &timeout);
 
-                if(join_result == ETIMEDOUT)
+            
+            if(join_result == ETIMEDOUT) {
+                long elapsed_time_micro = 3 * 100000000;
+                CNF_runtimes.push_back(elapsed_time_micro);
+            }
+
+            if(join_result == ETIMEDOUT || timeout_count == 0)
+            {
+                cout<<"CNF-SAT-VC: timeout"<<endl;
+                timeout_count = 0;
+                // output_CNF.push_back(vertexCoverCNF[vertexCoverCNF.size()-1]);
+                // continue;
+            }
+            else {
+                pthread_join(t1, nullptr);
+                cout << "CNF-SAT-VC: ";
+                for (int i = 0; i < (int)vertexCoverCNF.size(); i++)
                 {
-                    cout<<"CNF-SAT-VC: timeout"<<endl;
-                    return 0;
+                    cout << vertexCoverCNF[i];
+                    output_CNF.push_back(vertexCoverCNF[i]);
+                    if (i < (int)vertexCoverCNF.size() - 1)
+                    {
+                        cout << ",";
+                    }
                 }
+                cout << endl;
+            }
 
-            pthread_join(t1, nullptr);
             pthread_join(t2, nullptr);
             pthread_join(t3, nullptr);
+        
+
+            cout << "APPROX-VC-1: ";
+            for (int i = 0; i < (int)vertexCoverAPPROX1.size(); i++)
+            {
+                cout << vertexCoverAPPROX1[i];
+                output_VC1.push_back(vertexCoverAPPROX1[i]);
+                if (i < (int)vertexCoverAPPROX1.size() - 1)
+                {
+                    cout << ",";
+                }
+            }
+            cout << endl;
+
+            cout << "APPROX-VC-2: ";
+            for (int i = 0; i < (int)vertexCoverAPPROX2.size(); i++)
+            {
+                cout << vertexCoverAPPROX2[i];
+                output_VC2.push_back(vertexCoverAPPROX2[i]);
+                if (i < (int)vertexCoverAPPROX2.size() - 1)
+                {
+                    cout << ",";
+                }
+            }
+            cout << endl;
             
             //=========================== ANALYSIS PART START====================================================
 
-            // int x_min = min(min((int)output_CNF.size(), (int)output_VC1.size()), (int)output_VC2.size());
+            
+            int x_min = min(min((int)output_CNF.size(), (int)output_VC1.size()), (int)output_VC2.size());
 
-            // // Print approximation ratio
-            // if(x_min != 0)
-            // {
-            // CNF_approx_ratio.push_back((double)output_CNF.size() / x_min);
-            // VC1_approx_ratio.push_back((double)output_VC1.size() / x_min);
-            // VC2_approx_ratio.push_back((double)output_VC2.size() / x_min);
+            // Print approximation ratio
+            if(x_min != 0)
+            {
+            CNF_approx_ratio.push_back((double)output_CNF.size() / x_min);
+            VC1_approx_ratio.push_back((double)output_VC1.size() / x_min);
+            VC2_approx_ratio.push_back((double)output_VC2.size() / x_min);
 
-            // }
-            // else
-            // {
-            // CNF_approx_ratio.push_back((double)output_CNF.size() / output_VC1.size());
-            // VC1_approx_ratio.push_back((double)output_VC1.size() / output_VC1.size());
-            // VC2_approx_ratio.push_back((double)output_VC2.size() / output_VC1.size());
-            // }
+            }
+            else
+            {
+            CNF_approx_ratio.push_back((double)output_CNF.size() / output_VC1.size());
+            VC1_approx_ratio.push_back((double)output_VC1.size() / output_VC1.size());
+            VC2_approx_ratio.push_back((double)output_VC2.size() / output_VC1.size());
+            }
+
+    
+
+            ofstream myfile;
+            myfile.open("../runtime.csv");
+            myfile << "graphspec,vertices,CNF,VC1,VC2\n";
+            for (int i = 0; i < (int)CNF_runtimes.size(); i++)
+            {
+                myfile << i + 1 << "," << vertice_list[i] << "," << CNF_runtimes[i] << "," << VC1_runtimes[i] << "," << VC2_runtimes[i] << "\n";
+            }
+            myfile.close();
 
 
-            // ofstream myfile;
-            // myfile.open("../runtime.csv");
-            // myfile << "graphspec,vertices,CNF,VC1,VC2\n";
-            // for (int i = 0; i < (int)CNF_runtimes.size(); i++)
-            // {
-            //     myfile << i + 1 << "," << vertice_list[i] << "," << CNF_runtimes[i] << "," << VC1_runtimes[i] << "," << VC2_runtimes[i] << "\n";
-            // }
-            // myfile.close();
+            ofstream myfile2;
+            myfile2.open("../approx_ratio.csv");
+            myfile2 << "graphspec,vertices,CNF,VC1,VC2\n";
+            for (int i = 0; i < (int)CNF_approx_ratio.size(); i++)
+            {
+                myfile2 << i + 1 << "," << vertice_list[i] << "," << CNF_approx_ratio[i] << "," << VC1_approx_ratio[i] << "," << VC2_approx_ratio[i] << "\n";
+            }
+            myfile2.close();
+            
 
-            // ofstream myfile2;
-            // myfile2.open("../approx_ratio.csv");
-            // myfile2 << "graphspec,vertices,CNF,VC1,VC2\n";
-            // for (int i = 0; i < (int)CNF_approx_ratio.size(); i++)
-            // {
-            //     myfile2 << i + 1 << "," << vertice_list[i] << "," << CNF_approx_ratio[i] << "," << VC1_approx_ratio[i] << "," << VC2_approx_ratio[i] << "\n";
-            // }
-            // myfile2.close();
-
-            // // Clear Vectors before adding data for another graph spec
-            // output_CNF.clear();
-            // output_VC1.clear();
-            // output_VC2.clear();
+            // Clear Vectors before adding data for another graph spec
+            output_CNF.clear();
+            output_VC1.clear();
+            output_VC2.clear();
+            
 
             //==========================ANALYSIS PART ENDS==============================================
         }
