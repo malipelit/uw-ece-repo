@@ -39,7 +39,6 @@ vector<double> VC2_approx_ratio;
 //=================PART OF ANALYSIS ENDS====================================
 
 vector<int> vertice_list;
-mutex Terminal_lock;
 
 //========================================= MAIN ===================================================
 class Project
@@ -236,7 +235,6 @@ class Project
         pthread_getcpuclockid(pthread_self(), &clock_id);
         clock_gettime(clock_id, &start);
 
-        // vector<int> vertexCover;
         bool reductionOccurred = true;
 
         while (reductionOccurred)
@@ -283,21 +281,6 @@ class Project
         }
 
         sort(vertexCoverAPPROX1.begin(), vertexCoverAPPROX1.end());
-        // lock_guard<mutex> lock(Terminal_lock);
-        // cout << "APPROX-VC-1: ";
-
-        // for (int i = 0; i < (int)vertexCover.size(); i++)
-        // {
-        //     cout << vertexCover[i];
-        //     output_VC1.push_back(vertexCover[i]);
-        //     if (i < (int)vertexCover.size() - 1)
-        //     {
-        //         cout << ",";
-        //     }
-        // }
-        // cout << endl;
-        // Terminal_lock.unlock();
-
 
         clock_gettime(clock_id, &end);
         long sec = end.tv_sec - start.tv_sec;
@@ -313,8 +296,6 @@ class Project
         clockid_t clock_id;
         pthread_getcpuclockid(pthread_self(), &clock_id);
         clock_gettime(clock_id, &start);
-
-        // vector<int> vertexCover;
 
         while (true)
         {
@@ -341,20 +322,6 @@ class Project
         }
 
         sort(vertexCoverAPPROX2.begin(), vertexCoverAPPROX2.end());
-        // lock_guard<mutex> lock(Terminal_lock);
-        // cout << "APPROX-VC-2: ";
-        // for (int i = 0; i < (int)vertexCover.size(); i++)
-        // {
-        //     cout << vertexCover[i];
-        //     output_VC2.push_back(vertexCover[i]);
-        //     if (i < (int)vertexCover.size() - 1)
-        //     {
-        //         cout << ",";
-        //     }
-        // }
-        // cout << endl;
-        // Terminal_lock.unlock();
- 
 
         clock_gettime(clock_id, &end);
         long sec = end.tv_sec - start.tv_sec;
@@ -399,21 +366,6 @@ void* threadFunction1(void* graph) {
     if(timeout_count) {
         vertexCoverCNF = myObj->VC_Binary_Search(-1, myObj->number_of_nodes);
 
-        // ===== MAIN CODE =======
-
-        // lock_guard<mutex> lock(Terminal_lock);
-        // cout << "CNF-SAT-VC: ";
-        // for (int i = 0; i < (int)vertex_cover_print.size(); i++)
-        // {
-        //     cout << vertex_cover_print[i];
-        //     output_CNF.push_back(vertex_cover_print[i]);
-        //     if (i < (int)vertex_cover_print.size() - 1)
-        //     {
-        //         cout << ",";
-        //     }
-        // }
-        // cout << endl;
-        // Terminal_lock.unlock();
 
         clock_gettime(clock_id, &end);
         long sec = end.tv_sec - start.tv_sec;
@@ -514,22 +466,6 @@ int handle_IO()
                 {
                     int xi = stoi(matches[1].str());
                     int yi = stoi(matches[2].str());
-                    // cout << "xi: " << xi << ", yi: " << yi << endl;
-
-                    // if ((number_of_nodes >= xi) && (number_of_nodes >= yi) && (xi != 0) && (yi != 0) && (xi != yi))
-                    // {
-                    //     graph.edge(xi, yi);
-                    //     e_flag = 1;
-                    // }
-                    // else
-                    // {
-                    //     cout << "Error: Invalid Edge/vertex Input" << endl;
-                    //     graph = Project(number_of_nodes);
-                    //     e_flag = 0;
-                    //     break;
-                    // }
-
-                    // searchStart = matches.suffix().first;
 
                     // Accessing private variable from the class
                     
@@ -562,11 +498,6 @@ int handle_IO()
                     searchStart = matches.suffix().first;
                 }
             }
-            // else
-            // {
-            //     cout << "Error: V E E not valid :: Provide first V then E" << endl;
-            // }
-
             
             vertexCoverCNF.clear();
             vertexCoverAPPROX1.clear();
@@ -594,8 +525,6 @@ int handle_IO()
             {
                 cout<<"CNF-SAT-VC: timeout"<<endl;
                 timeout_count = 0;
-                // output_CNF.push_back(vertexCoverCNF[vertexCoverCNF.size()-1]);
-                // continue;
             }
             else {
                 pthread_join(t1, nullptr);
