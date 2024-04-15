@@ -1,7 +1,13 @@
---- # Personal information
-first: Mayav Rohan, Mehmet Ali 
-last: Antani, Pelit
-watiam: mrantani, mapelit
-student: 21082382, 21113622
-email: mrantani@uwaterloo.ca, mapelit@uwaterloo.ca
+--- # Member 1
+first: Mayav Rohan 
+last: Antani
+watiam: mrantani
+student: 21082382
+email: mrantani@uwaterloo.ca
+--- # Member 2
+first: Mehmet Ali
+last: Pelit
+watiam: mapelit
+student: 21113622
+email: mapelit@uwaterloo.ca
 ...
